@@ -6,11 +6,10 @@ import React, {
   useEffect,
   useState,
   useMemo,
-  memo,
-  cloneElement
+  memo
 } from 'react'
-import type { Context, CSSProperties, HTMLProps, ReactElement, ReactNodeArray } from 'react'
-import type { UseThemeProps, ThemeProviderProps } from './types'
+import type { Context } from 'react'
+import type { UseThemeProps, ThemeProviderProps } from '../types'
 
 const colorSchemes = ['light', 'dark']
 const MEDIA = '(prefers-color-scheme: dark)'
@@ -39,7 +38,6 @@ const Theme: React.FC<ThemeProviderProps> = ({
   enableSystem = true,
   enableColorScheme = true,
   storageKey = 'theme',
-  cookieName: _cookieName,
   themes = defaultThemes,
   defaultTheme = enableSystem ? 'system' : 'light',
   attribute = 'data-theme',
@@ -51,12 +49,6 @@ const Theme: React.FC<ThemeProviderProps> = ({
   const [resolvedTheme, setResolvedTheme] = useState(() => getTheme(storageKey))
   const attrs = !value ? themes : Object.values(value)
 
-  let cookieName = _cookieName
-  if (!cookieName && 'document' in globalThis) {
-    // @ts-ignore
-    cookieName = globalThis.document.documentElement?.__nextThemesCookie || null;
-  }
-
   const applyTheme = useCallback(theme => {
     let resolved = theme
     if (!resolved) return
@@ -64,10 +56,6 @@ const Theme: React.FC<ThemeProviderProps> = ({
     // If theme is system, resolve it before setting theme
     if (theme === 'system' && enableSystem) {
       resolved = getSystemTheme()
-    }
-
-    if (cookieName) {
-      document.cookie = `${encodeURIComponent(cookieName)}=${encodeURIComponent(resolved)};path=/;max-age=31536000`
     }
 
     const name = value ? value[resolved] : resolved
@@ -174,7 +162,6 @@ const Theme: React.FC<ThemeProviderProps> = ({
           enableSystem,
           enableColorScheme,
           storageKey,
-          cookieName: _cookieName,
           themes,
           defaultTheme,
           attribute,
@@ -193,7 +180,6 @@ const ThemeScript = memo(
   ({
     forcedTheme,
     storageKey,
-    cookieName,
     attribute,
     enableSystem,
     enableColorScheme,
@@ -253,10 +239,6 @@ const ThemeScript = memo(
         }
       }
 
-      if ((literal || resolvedName) && cookieName) {
-        text += `;document.cookie=\`${encodeURIComponent(cookieName)}=${name.includes('e') ? `\${encodeURIComponent(${name})}` : encodeURIComponent(name)};path=/;max-age=31536000\``
-      }
-
       return text
     }
 
@@ -266,9 +248,7 @@ const ThemeScript = memo(
       }
 
       if (enableSystem) {
-        return `!function(){try{${optimization}var e=localStorage.getItem('${storageKey}');${
-          cookieName ? `d.__nextThemesCookie=${JSON.stringify(cookieName)};` : ''
-        }if('system'===e||(!e&&${defaultSystem})){var t='${MEDIA}',m=window.matchMedia(t);if(m.media!==t||m.matches){${updateDOM(
+        return `!function(){try{${optimization}var e=localStorage.getItem('${storageKey}');if('system'===e||(!e&&${defaultSystem})){var t='${MEDIA}',m=window.matchMedia(t);if(m.media!==t||m.matches){${updateDOM(
           'dark'
         )}}else{${updateDOM('light')}}}else if(e){${
           value ? `var x=${JSON.stringify(value)};` : ''
@@ -329,111 +309,4 @@ const getSystemTheme = (e?: MediaQueryList | MediaQueryListEvent) => {
   const isDark = e.matches
   const systemTheme = isDark ? 'dark' : 'light'
   return systemTheme
-}
-
-let getCookie: ((name: string) => string | null) | undefined
-try {
-  const { cookies } = require('next/headers');
-  getCookie = (name: string) => cookies?.().get(name)?.value;
-} catch(e) {}
-
-// Properties for rendering <html> on the server in a way that will match client after hydration
-const getThemeHtmlProps = ({
-  attribute = 'data-theme',
-  cookieName = 'theme',
-  defaultTheme = 'light',
-  enableColorScheme = true,
-  value,
-}: ThemeProviderProps) => {
-  const props: HTMLProps<HTMLHtmlElement> = {}
-
-  const resolved = getCookie?.(cookieName) || defaultTheme
-  const name = value ? value[resolved] : resolved
-
-  if (attribute === 'class') {
-    if (name) props.className = name
-  } else {
-    (props as Record<string, string>)[attribute] = name
-  }
-
-  if (enableColorScheme) {
-    const fallback = colorSchemes.includes(defaultTheme) ? defaultTheme : null
-    const colorScheme = colorSchemes.includes(resolved) ? resolved : fallback
-    props.style = { colorScheme } as CSSProperties
-  }
-
-  return props
-}
-
-// Wraps an <html> element on the server to apply themes before reaching the client
-export const ServerThemeProvider: React.FC<ThemeProviderProps> = ({ children, ...props }) => {
-  if (!children || (children as ReactElement).type !== 'html') {
-    throw new Error('<ServerThemeProvider> must contain the <html> element.')
-  }
-  const child = children as ReactElement
-  const original = child.props
-  const resolved = getThemeHtmlProps(props)
-  if (original.className && resolved.className) {
-    resolved.className = `${original.className} ${resolved.className}`
-  }
-  if (original.style && resolved.style) {
-    let originalStyle = original.style
-    if (typeof originalStyle === 'string') {
-      originalStyle = Object.fromEntries(originalStyle.split(/;\s*/).map(x => x.split(/\s*:\s*/)))
-    }
-    resolved.style = {
-      ...resolved.style,
-      ...originalStyle,
-    }
-  }
-
-  let newKids: ReactNodeArray
-  if (!original.children) {
-    newKids = []
-  } else if (!Array.isArray(original.children)) {
-    newKids = [original.children]
-  } else {
-    newKids = [...original.children]
-  }
-  let bodyIndex = newKids.findIndex(x => x && typeof x === 'object' && (x as ReactElement).type === 'body')
-  let body: ReactElement
-  if (bodyIndex !== -1) {
-    body = newKids.splice(bodyIndex, 1)[0] as ReactElement
-  } else {
-    bodyIndex = newKids.length
-    body = <body />
-  }
-  let bodyChildren: ReactNodeArray
-  if (!body.props?.children) {
-    bodyChildren = []
-  } else if (!Array.isArray(body.props.children)) {
-    bodyChildren = [body.props.children]
-  } else {
-    bodyChildren = [...body.props.children]
-  }
-  const attrs = !props.value ? (props.themes || defaultThemes) : Object.values(props.value)
-  const defaultTheme = props.enableSystem !== false ? 'system' : 'light'
-  resolved.children = [
-    ...newKids.slice(0, bodyIndex),
-    cloneElement(body, {
-      children: [
-        <ThemeScript {...{
-          attrs,
-          defaultTheme,
-          disableTransitionOnChange: false,
-          enableSystem: true,
-          enableColorScheme: true,
-          storageKey: 'theme',
-          cookieName: 'theme',
-          themes: defaultThemes,
-          attribute: 'data-theme',
-          ...props,
-        }} />,
-        ...bodyChildren,
-      ]
-    }),
-    ...newKids.slice(bodyIndex),
-  ]
-
-  return cloneElement(child, resolved)
 }
