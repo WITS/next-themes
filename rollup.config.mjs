@@ -35,13 +35,23 @@ export default [
   },
   {
     input: 'src/index.ts',
-    output: {
-      file: 'dist/index.js',
-      format: 'cjs',
-    },
+    output: [
+      {
+        file: 'dist/index.js',
+        format: 'cjs',
+      },
+      {
+        file: 'dist/index.module.js',
+        format: 'module',
+      },
+    ],
     plugins: [
       commonjs(),
-      typescript(),
+      typescript({
+        declaration: true,
+        declarationDir: '../dist',
+        emitDeclarationOnly: true,
+      }),
     ],
   },
 ]
