@@ -13,8 +13,7 @@ export const ServerThemeProvider: React.FC<ThemeProviderProps> = ({ children, ..
   }
   const child = children as ReactElement
   const original = child.props
-  const resolved = { ...original }
-  // TODO: add suppressHydrationWarnings
+  const resolved = { ...original, suppressHydrationWarning: true }
 
   let newKids: ReactNodeArray
   if (!original.children) {
