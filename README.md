@@ -5,6 +5,7 @@ An abstraction for themes in your Next.js app.
 - ✅ Perfect dark mode in 2 lines of code
 - ✅ System setting with prefers-color-scheme
 - ✅ Themed browser UI with color-scheme
+- ✅ Support for Next.js 13 `appDir`
 - ✅ No flash on load (both SSR and SSG)
 - ✅ Sync theme across tabs and windows
 - ✅ Disable flashing when changing themes
@@ -23,6 +24,8 @@ $ yarn add next-themes
 ```
 
 ## Use
+
+### With pages/
 
 You'll need a [Custom `App`](https://nextjs.org/docs/advanced-features/custom-app) to use next-themes. The simplest `_app` looks like this:
 
@@ -51,6 +54,44 @@ function MyApp({ Component, pageProps }) {
 
 export default MyApp
 ```
+
+### With app/
+
+You'll need to update your `app/layout.jsx` to use next-themes. The simplest `layout` looks like this:
+
+```js
+// app/layout.jsx
+
+export default function Layout({ children }) {
+  return (
+    <html>
+      <head />
+      <body>{children}</body>
+    </html>
+  )
+}
+```
+
+Adding dark mode support takes 2 ½ lines of code:
+
+```js
+import { ThemeProvider } from 'next-themes'
+
+export default function Layout({ children }) {
+  return (
+    <html suppressHydrationWarning>
+      <head />
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
+    </html>
+  )
+}
+```
+
+> **Note!** If you do not add [suppressHydrationWarning](https://reactjs.org/docs/dom-elements.html#suppresshydrationwarning:~:text=It%20only%20works%20one%20level%20deep) to your `<html>` you will get warnings because `next-themes` updates that element. This property only applies one level deep, so it won't block hydration warnings on other elements.
+
+### HTML & CSS
 
 That's it, your Next.js app fully supports dark mode, including System preference with `prefers-color-scheme`. The theme is also immediately synced between tabs. By default, next-themes modifies the `data-theme` attribute on the `html` element, which you can easily use to style your app:
 
